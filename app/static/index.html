@@ -1,0 +1,639 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#faf7f2" />
+    <title>AI 私人厨师</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg: #faf7f2;
+        --surface: #ffffff;
+        --text: #2c2419;
+        --muted: #7a6e63;
+        --orange: #e86830;
+        --orange-soft: #fff2eb;
+        --line: #ebe4dc;
+        --input-bg: #f0ebe4;
+        --shadow: 0 8px 32px rgba(44, 36, 25, 0.06);
+        --radius: 14px;
+        --safe-bottom: env(safe-area-inset-bottom, 0px);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        height: 100%;
+        margin: 0;
+        font-family: "Noto Sans SC", system-ui, -apple-system, sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        -webkit-tap-highlight-color: transparent;
+      }
+
+      .app {
+        max-width: 480px;
+        margin: 0 auto;
+        min-height: 100%;
+        display: flex;
+        flex-direction: column;
+        position: relative;
+      }
+
+      /* Header */
+      header {
+        padding: 14px 16px 10px;
+        background: linear-gradient(180deg, var(--surface) 0%, rgba(255, 255, 255, 0.92) 100%);
+        border-bottom: 1px solid var(--line);
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+        flex-shrink: 0;
+      }
+
+      .brand-icon {
+        width: 44px;
+        height: 44px;
+        border-radius: 12px;
+        background: linear-gradient(145deg, #ff8f4d 0%, var(--orange) 100%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 4px 14px rgba(232, 104, 48, 0.35);
+        flex-shrink: 0;
+      }
+
+      .brand-icon svg {
+        width: 26px;
+        height: 26px;
+        fill: #fff;
+      }
+
+      .brand-text h1 {
+        margin: 0;
+        font-size: 1.05rem;
+        font-weight: 700;
+        color: var(--orange);
+        letter-spacing: 0.02em;
+      }
+
+      .brand-text p {
+        margin: 4px 0 0;
+        font-size: 0.75rem;
+        color: var(--muted);
+        line-height: 1.45;
+      }
+
+      .avatar {
+        margin-left: auto;
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        background: #2c2419;
+        color: #fff;
+        font-weight: 600;
+        font-size: 0.9rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+      }
+
+      /* Chat area */
+      main {
+        flex: 1;
+        overflow-y: auto;
+        padding: 16px 16px 120px;
+        -webkit-overflow-scrolling: touch;
+      }
+
+      .empty {
+        text-align: center;
+        padding: 48px 24px 32px;
+      }
+
+      .empty-icon {
+        width: 88px;
+        height: 88px;
+        margin: 0 auto 20px;
+        border-radius: 50%;
+        background: var(--surface);
+        box-shadow: var(--shadow);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .empty-icon svg {
+        width: 44px;
+        height: 44px;
+      }
+
+      .empty h2 {
+        margin: 0 0 10px;
+        font-size: 1.05rem;
+        font-weight: 600;
+        color: var(--orange);
+      }
+
+      .empty p {
+        margin: 0;
+        font-size: 0.85rem;
+        color: var(--muted);
+        line-height: 1.55;
+      }
+
+      .messages {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+      }
+
+      .msg {
+        max-width: 90%;
+        padding: 12px 14px;
+        border-radius: var(--radius);
+        font-size: 0.9rem;
+        line-height: 1.55;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+
+      .msg.user {
+        align-self: flex-end;
+        background: var(--orange);
+        color: #fff;
+        border-bottom-right-radius: 4px;
+      }
+
+      .msg.assistant {
+        align-self: flex-start;
+        background: var(--surface);
+        border: 1px solid var(--line);
+        box-shadow: var(--shadow);
+        border-bottom-left-radius: 4px;
+      }
+
+      .msg.assistant.loading {
+        color: var(--muted);
+      }
+
+      .msg img.thumb {
+        max-width: 100%;
+        border-radius: 10px;
+        margin-bottom: 8px;
+        display: block;
+      }
+
+      .error-banner {
+        margin: 8px 0;
+        padding: 10px 12px;
+        background: #fff0f0;
+        border: 1px solid #f5c2c2;
+        border-radius: 10px;
+        color: #b42318;
+        font-size: 0.8rem;
+      }
+
+      /* Composer */
+      .composer-wrap {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        padding: 10px 12px calc(12px + var(--safe-bottom));
+        background: linear-gradient(0deg, var(--bg) 60%, transparent);
+        pointer-events: none;
+      }
+
+      .composer-wrap > .composer {
+        pointer-events: auto;
+      }
+
+      .composer {
+        max-width: 480px;
+        margin: 0 auto;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: 22px;
+        padding: 6px 8px 6px 10px;
+        box-shadow: var(--shadow);
+      }
+
+      .btn-icon {
+        width: 42px;
+        height: 42px;
+        border: none;
+        border-radius: 50%;
+        background: transparent;
+        color: var(--muted);
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        transition: color 0.15s, background 0.15s;
+      }
+
+      .btn-icon:hover {
+        background: var(--orange-soft);
+        color: var(--orange);
+      }
+
+      .btn-icon:active {
+        transform: scale(0.96);
+      }
+
+      .btn-icon svg {
+        width: 22px;
+        height: 22px;
+      }
+
+      .composer input[type="text"] {
+        flex: 1;
+        border: none;
+        background: var(--input-bg);
+        border-radius: 14px;
+        padding: 11px 14px;
+        font-size: 0.9rem;
+        font-family: inherit;
+        color: var(--text);
+        outline: none;
+      }
+
+      .composer input[type="text"]::placeholder {
+        color: #a89888;
+      }
+
+      .btn-send {
+        width: 44px;
+        height: 44px;
+        border: none;
+        border-radius: 50%;
+        background: linear-gradient(145deg, #ff8f4d 0%, var(--orange) 100%);
+        color: #fff;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        box-shadow: 0 4px 12px rgba(232, 104, 48, 0.35);
+        transition: transform 0.15s, opacity 0.15s;
+      }
+
+      .btn-send:disabled {
+        opacity: 0.45;
+        cursor: not-allowed;
+        transform: none;
+      }
+
+      .btn-send:not(:disabled):active {
+        transform: scale(0.95);
+      }
+
+      .btn-send svg {
+        width: 20px;
+        height: 20px;
+        margin-left: 2px;
+      }
+
+      input[type="file"] {
+        display: none;
+      }
+
+      .preview-chip {
+        max-width: 480px;
+        margin: 0 auto 6px;
+        padding: 0 4px;
+        pointer-events: auto;
+      }
+
+      .preview-chip-inner {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 6px 10px;
+        font-size: 0.75rem;
+        color: var(--muted);
+      }
+
+      .preview-chip img {
+        width: 40px;
+        height: 40px;
+        object-fit: cover;
+        border-radius: 8px;
+      }
+
+      .preview-chip button {
+        border: none;
+        background: none;
+        color: var(--orange);
+        cursor: pointer;
+        font-size: 0.75rem;
+        padding: 4px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app">
+      <header>
+        <div class="brand-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path
+              d="M12 3C8.5 3 6 5.2 6 8v2H5c-.6 0-1 .4-1 1v1c0 3.3 2.5 6 6 6h4c3.5 0 6-2.7 6-6V11c0-.6-.4-1-1-1h-1V8c0-2.8-2.5-5-6-5zm0 2c2.5 0 4 1.5 4 3v2H8V8c0-1.5 1.5-3 4-3zM8 18v2h8v-2H8z"
+            />
+          </svg>
+        </div>
+        <div class="brand-text">
+          <h1>AI 私人厨师</h1>
+          <p>上传食材图片，获取个性化食谱推荐</p>
+        </div>
+        <div class="avatar" title="访客">N</div>
+      </header>
+
+      <main id="main">
+        <div class="empty" id="empty">
+          <div class="empty-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path
+                fill="#e86830"
+                d="M11 9H9V2H7v7H5V2H3v7c0 2.12 1.66 3.84 3.75 3.97V22h2.5v-9.03C11.34 12.84 13 11.12 13 9V2h-2v7zm5-3v8h2.5v8H21V2c-2.76 0-5 2.24-5 4z"
+              />
+            </svg>
+          </div>
+          <h2>上传食材图片开始吧</h2>
+          <p>我会帮您识别食材并推荐食谱</p>
+        </div>
+        <div class="messages" id="messages" hidden></div>
+      </main>
+
+      <div class="composer-wrap">
+        <div class="preview-chip" id="previewChip" hidden>
+          <div class="preview-chip-inner">
+            <img id="previewImg" alt="" />
+            <span id="previewLabel">已选图片</span>
+            <button type="button" id="clearImage">移除</button>
+          </div>
+        </div>
+        <form class="composer" id="form" autocomplete="off">
+          <input type="file" id="file" accept="image/*" />
+          <button type="button" class="btn-icon" id="pickImage" title="上传图片" aria-label="上传图片">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+              <circle cx="8.5" cy="8.5" r="1.5" />
+              <polyline points="21 15 16 10 5 21" />
+            </svg>
+          </button>
+          <input
+            type="text"
+            id="input"
+            placeholder="描述你有的食材..."
+            enterkeyhint="send"
+          />
+          <button type="submit" class="btn-send" id="send" disabled aria-label="发送">
+            <svg viewBox="0 0 24 24" fill="currentColor">
+              <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
+            </svg>
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <script>
+      (function () {
+        const API = "";
+
+        const $ = (id) => document.getElementById(id);
+        const main = $("main");
+        const empty = $("empty");
+        const messagesEl = $("messages");
+        const form = $("form");
+        const input = $("input");
+        const sendBtn = $("send");
+        const fileInput = $("file");
+        const pickImage = $("pickImage");
+        const previewChip = $("previewChip");
+        const previewImg = $("previewImg");
+        const previewLabel = $("previewLabel");
+        const clearImage = $("clearImage");
+
+        const THREAD_KEY = "pc_thread_id";
+        function getThreadId() {
+          let id = sessionStorage.getItem(THREAD_KEY);
+          if (!id) {
+            id = crypto.randomUUID();
+            sessionStorage.setItem(THREAD_KEY, id);
+          }
+          return id;
+        }
+
+        let imageUrl = "";
+        let localPreviewUrl = "";
+        let uploading = false;
+
+        function hasContent() {
+          return input.value.trim().length > 0 || imageUrl.length > 0;
+        }
+
+        function syncSend() {
+          sendBtn.disabled = uploading || !hasContent();
+        }
+
+        input.addEventListener("input", syncSend);
+
+        pickImage.addEventListener("click", () => fileInput.click());
+
+        clearImage.addEventListener("click", () => {
+          imageUrl = "";
+          if (localPreviewUrl) {
+            URL.revokeObjectURL(localPreviewUrl);
+            localPreviewUrl = "";
+          }
+          previewChip.hidden = true;
+          fileInput.value = "";
+          syncSend();
+        });
+
+        fileInput.addEventListener("change", async () => {
+          const file = fileInput.files && fileInput.files[0];
+          if (!file) return;
+          if (localPreviewUrl) URL.revokeObjectURL(localPreviewUrl);
+          localPreviewUrl = URL.createObjectURL(file);
+          previewImg.src = localPreviewUrl;
+          previewLabel.textContent = "上传中…";
+          previewChip.hidden = false;
+          uploading = true;
+          syncSend();
+
+          try {
+            const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
+            const presignRes = await fetch(API + "/api/v1/oss/signed-upload", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                filename: file.name || "upload." + ext,
+                content_type: file.type || "image/jpeg",
+                expires_seconds: 3600,
+              }),
+            });
+            if (!presignRes.ok) {
+              const t = await presignRes.text();
+              throw new Error(t || presignRes.statusText);
+            }
+            const presign = await presignRes.json();
+            const putHeaders = { ...(presign.headers || {}) };
+            // 必须与申请预签名时一致；部分图片 file.type 为空，优先用接口返回的 content_type
+            const putCt = presign.content_type ?? file.type;
+            if (putCt) putHeaders["Content-Type"] = putCt;
+
+            const putRes = await fetch(presign.url, {
+              method: presign.method || "PUT",
+              headers: putHeaders,
+              body: file,
+            });
+            if (!putRes.ok) throw new Error("上传到 OSS 失败: " + putRes.status);
+
+            imageUrl = presign.read_url || presign.access_url || "";
+            previewLabel.textContent = "已上传";
+            if (localPreviewUrl) {
+              URL.revokeObjectURL(localPreviewUrl);
+              localPreviewUrl = "";
+            }
+            if (imageUrl) previewImg.src = imageUrl;
+          } catch (e) {
+            console.error(e);
+            let msg = String(e.message || e);
+            if (
+              e.name === "TypeError" ||
+              msg === "Failed to fetch" ||
+              msg.includes("NetworkError")
+            ) {
+              msg =
+                "直连 OSS 失败（多为跨域）。请在阿里云 OSS 对应 Bucket → 跨域设置(CORS) 添加来源：" +
+                window.location.origin +
+                "，允许方法包含 PUT，允许 Headers 含 Content-Type（开发期可用 *）。详见控制台 Network 里对 OSS 域名的 OPTIONS 是否成功。";
+            }
+            showError(msg);
+            previewChip.hidden = true;
+            imageUrl = "";
+            if (localPreviewUrl) {
+              URL.revokeObjectURL(localPreviewUrl);
+              localPreviewUrl = "";
+            }
+            fileInput.value = "";
+          } finally {
+            uploading = false;
+            syncSend();
+          }
+        });
+
+        function showError(msg) {
+          const div = document.createElement("div");
+          div.className = "error-banner";
+          div.textContent = msg;
+          if (empty.hidden) messagesEl.appendChild(div);
+          else main.insertBefore(div, empty.nextSibling);
+          setTimeout(() => div.remove(), 8000);
+        }
+
+        function showChat() {
+          empty.hidden = true;
+          messagesEl.hidden = false;
+        }
+
+        function appendMessage(role, text, imgSrc) {
+          showChat();
+          const div = document.createElement("div");
+          div.className = "msg " + role;
+          if (imgSrc && role === "user") {
+            const im = document.createElement("img");
+            im.className = "thumb";
+            im.src = imgSrc;
+            im.alt = "食材";
+            div.appendChild(im);
+          }
+          const span = document.createElement("span");
+          span.textContent = text;
+          div.appendChild(span);
+          messagesEl.appendChild(div);
+          main.scrollTop = main.scrollHeight;
+          return div;
+        }
+
+        form.addEventListener("submit", async (e) => {
+          e.preventDefault();
+          if (sendBtn.disabled) return;
+
+          let prompt = input.value.trim();
+          const threadId = getThreadId();
+          const imgForDisplay = imageUrl || localPreviewUrl || "";
+
+          if (!prompt && imageUrl) {
+            prompt = "请根据这张食材图片识别食材并推荐食谱。";
+          }
+          if (!prompt && !imageUrl) return;
+
+          appendMessage("user", prompt || "（图片）", imgForDisplay || null);
+          input.value = "";
+          syncSend();
+
+          const loading = appendMessage("assistant", "正在思考…", null);
+          loading.classList.add("loading");
+
+          try {
+            const res = await fetch(API + "/api/v1/chat/stream", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                prompt: prompt,
+                image: imageUrl,
+                thread_id: threadId,
+              }),
+            });
+            if (!res.ok) throw new Error(await res.text() || res.statusText);
+
+            loading.classList.remove("loading");
+            loading.textContent = "";
+
+            const reader = res.body.getReader();
+            const dec = new TextDecoder();
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+              loading.textContent += dec.decode(value, { stream: true });
+              main.scrollTop = main.scrollHeight;
+            }
+          } catch (err) {
+            loading.classList.remove("loading");
+            loading.textContent = "出错了：" + (err.message || String(err));
+            showError(loading.textContent);
+          }
+
+          imageUrl = "";
+          if (localPreviewUrl) {
+            URL.revokeObjectURL(localPreviewUrl);
+            localPreviewUrl = "";
+          }
+          previewChip.hidden = true;
+          fileInput.value = "";
+          syncSend();
+        });
+      })();
+    </script>
+  </body>
+</html>
