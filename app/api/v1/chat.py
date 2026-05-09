@@ -11,8 +11,8 @@ router = APIRouter()
 async def chat_endpoint(request: ChatRequest):
     """流式对话"""
     return StreamingResponse(
-        search_recipes(request.message, request.image_url, request.thread_id),
-        media_type="text/event-stream"
+        search_recipes(request.prompt, request.image, request.thread_id),
+        media_type="text/event-stream",
     )
 
 

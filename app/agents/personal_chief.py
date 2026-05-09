@@ -1,37 +1,57 @@
-from langchain.chat_models import init_chat_model
-from langchain_core.messages import HumanMessage, AIMessageChunk, AIMessage
-from langchain_core.tools import tool
-from langchain_tavily import TavilySearch
-from langchain.agents import create_agent
-from app.common.logger import logger
-import os
-from langgraph.checkpoint.sqlite import SqliteSaver
-import sqlite3
+from __future__ import annotations
 
-# 4.初始化checkpointer
-# 连接sqlite
-connection = sqlite3.connect("../db/personal_chief.db", check_same_thread=False)
-# 初始化checkpointer
-checkpointer = SqliteSaver(connection)
-# 1.加载环境变量
+import os
+import sqlite3
+import warnings
+from pathlib import Path
+
+from langchain_core._api.deprecation import LangChainPendingDeprecationWarning
+
+warnings.filterwarnings(
+    "ignore",
+    category=LangChainPendingDeprecationWarning,
+    message=r"The default value of `allowed_objects` will change",
+)
+
+from langchain.agents import create_agent
+from langchain.chat_models import init_chat_model
+from langchain_core.messages import AIMessage, AIMessageChunk, HumanMessage
+from langchain_tavily import TavilySearch
+from langgraph.checkpoint.sqlite import SqliteSaver
+
+from app.common.logger import logger
+
+# 加载环境变量
 from dotenv import load_dotenv
+
 load_dotenv()
 
-# 2.web搜索工具，使用tavily作为web搜索工具
-web_search = TavilySearch(
+# web搜索工具，使用tavily作为web搜索工具
+tavily = TavilySearch(
     max_results=5,
     topic="general"
 )
 
-# 3.多模态模型
+
+# 多模态模型
 model = init_chat_model(
-    model="qwen3.5-plus",  # 模型名称，这里选择qwen3.5-plus，这是一个多模态模型，支持图片、文本、音频、视频
+    model="qwen3-omni-flash",  # 模型名称，这里选择qwen3.5-plus，这是一个多模态模型，支持图片、文本、音频、视频
     model_provider="openai",
     base_url=os.getenv("DASHSCOPE_BASE_URL"),
     api_key=os.getenv("DASHSCOPE_API_KEY")
 )
 
-# 4.Agent系统提示词
+
+# 初始化 checkpointer：<项目根>/db，先建目录（否则 sqlite 报错）
+_project_root = Path(__file__).resolve().parent.parent.parent
+_db_dir = _project_root / "db"
+_db_dir.mkdir(parents=True, exist_ok=True)
+checkpointer = SqliteSaver(
+    sqlite3.connect(str(_db_dir / "personal_chief.db"), check_same_thread=False)
+)
+checkpointer.setup()
+
+# Agent系统提示词
 system_prompt = """
 你是一名私人厨师。收到用户提供的食材照片或清单后，请按以下流程操作：
 1.识别和评估食材：若用户提供照片，首先辨识所有可见食材。基于食材的外观状态，评估其新鲜度与可用量，整理出一份“当前可用食材清单”。
@@ -42,14 +62,14 @@ system_prompt = """
 请严格按照流程，优先调用 web_search 工具搜索食谱，搜索不到的情况下才能自己发挥。
 """
 
-# 5.创建Agent
+# 创建代理
 agent = create_agent(
     model=model,  # 模型
-    tools=[web_search],  # 工具
-    system_prompt=system_prompt,
-    checkpointer= checkpointer,  # 记忆
-# 系统提示词
+    tools=[tavily],  # 工具
+    checkpointer=checkpointer,  # 记忆
+    system_prompt=system_prompt  # 系统提示词
 )
+
 # 流式对话
 async def search_recipes(prompt: str, image: str, thread_id: str):
     """调用agent搜索食谱"""
@@ -59,9 +79,10 @@ async def search_recipes(prompt: str, image: str, thread_id: str):
         if not image or image.strip() == "":
             message = HumanMessage(content=prompt)
         else:
+            # DashScope OpenAI 兼容接口与多数 Chat 模型要求 image_url 块，不能用 type=image
             message = HumanMessage(content=[
-                {"type": "image", "url": image},
-                {"type": "text", "text": prompt}
+                {"type": "image_url", "image_url": {"url": image.strip()}},
+                {"type": "text", "text": prompt},
             ])
 
         # 流式调用Agent
@@ -74,7 +95,7 @@ async def search_recipes(prompt: str, image: str, thread_id: str):
                 yield chunk.content
 
     except Exception as e:
-        logger.error(f"\n[错误]: {str(e)}")
+        logger.exception("[search_recipes] Agent 流式调用失败: %s", e)
         yield "信息检索失败，试试看手动输入食物列表？"
 
 # 清空会话
